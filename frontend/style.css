@@ -358,6 +358,36 @@ body {
   font-size: 0.9rem;
 }
 
+/* Version info */
+.version-info {
+  text-align: center;
+  padding: 15px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  font-size: 0.85rem;
+  color: #6c757d;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.version-badge {
+  background: linear-gradient(135deg, #0f4c81 0%, #1a73b5 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+}
+
+.build-info {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
 /* Responsive för mindre skärmar */
 @media (max-width: 600px) {
   body {
@@ -385,5 +415,14 @@ body {
     min-width: 100%;
     text-align: left;
     margin-top: 8px;
+  }
+
+  .version-info {
+    font-size: 0.75rem;
+  }
+
+  .version-badge {
+    font-size: 0.7rem;
+    padding: 3px 10px;
   }
 }

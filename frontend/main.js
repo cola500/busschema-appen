@@ -32,6 +32,18 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// Update build info
+function updateBuildInfo() {
+  const buildInfoElement = document.getElementById('buildInfo');
+  if (buildInfoElement) {
+    const now = new Date();
+    const environment = window.location.hostname === 'localhost' ? 'Development' : 'Production';
+    buildInfoElement.textContent = `${environment} • ${now.toLocaleDateString('sv-SE')}`;
+  }
+}
+
+updateBuildInfo();
+
 // === FAVORITES MANAGEMENT ===
 
 // Get favorites from localStorage
