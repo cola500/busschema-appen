@@ -40,9 +40,12 @@ export default async function handler(req, res) {
     // Get access token from Västtrafik
     const token = await getAccessToken();
 
+    // Search within 1km radius
+    const radiusInMeters = 1000;
+
     // Make request to Västtrafik API
     const response = await fetch(
-      `${VASTTRAFIK_API_BASE}/locations/nearby?latitude=${lat}&longitude=${lon}&limit=${limit}`,
+      `${VASTTRAFIK_API_BASE}/locations/by-coordinates?latitude=${lat}&longitude=${lon}&radiusInMeters=${radiusInMeters}&limit=${limit}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`
