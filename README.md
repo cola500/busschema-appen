@@ -444,8 +444,34 @@ MIT
 
 **Skapad**: 2026-01-17
 **Senast uppdaterad**: 2026-01-17
-**Version**: 1.1.0
+**Version**: 1.2.0
+**Live URL**: https://busschema-appen.vercel.app
 
-## Changelog
+## Dokumentation
 
-Se [CHANGELOG.md](CHANGELOG.md) för detaljer om ändringar mellan versioner.
+- [CHANGELOG.md](CHANGELOG.md) - Ändringshistorik mellan versioner
+- [DEPLOYMENT_RETRO.md](DEPLOYMENT_RETRO.md) - Deployment retrospektiv med lärdomar
+- [RETROSPECTIVE.md](RETROSPECTIVE.md) - UX/Touch-optimering retrospektiv
+
+## Deployment Lärdomar
+
+### ⚠️ Viktigt vid Vercel Deployment
+
+**FÖRE första deployen:**
+1. ✅ Verifiera vilket GitHub repo Vercel ska kopplas till
+2. ✅ Se till att repo-namnet matchar exakt
+3. ✅ Pusha all kod till rätt repo först
+
+**Vanliga problem:**
+- **"localhost:3001" errors** → Kolla Settings → Git → Rätt repository?
+- **Gammal kod deployar** → Disable build cache och redeploy
+- **API fungerar inte** → Kolla Settings → Environment Variables
+
+**Environment Variables som INTE ska sättas:**
+- ❌ `VITE_API_URL` - Behövs inte! Använder relativ URL (`/api`)
+
+**Environment Variables som SKA sättas:**
+- ✅ `VASTTRAFIK_CLIENT_ID`
+- ✅ `VASTTRAFIK_CLIENT_SECRET`
+
+Se [DEPLOYMENT_RETRO.md](DEPLOYMENT_RETRO.md) för fullständig dokumentation av deployment-processen.

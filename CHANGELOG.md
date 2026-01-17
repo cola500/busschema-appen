@@ -5,6 +5,85 @@ Alla ändringar i projektet dokumenteras i denna fil.
 Formatet baseras på [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 och projektet följer [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-17
+
+### ✨ Tillagt
+
+#### Vercel Serverless Functions (Full Stack Deployment)
+- **Backend konverterad till Serverless Functions**
+  - `/api/stops/search.js` - Sök hållplatser via Västtrafik API
+  - `/api/departures/[gid].js` - Hämta avgångar (dynamic route)
+  - `/api/health.js` - Health check endpoint
+  - `/api/lib/vasttrafikAuth.js` - Shared OAuth2 authentication utility
+- **Automatisk deployment** - Push to GitHub → Automatisk deploy till Vercel
+- **Preview deployments** - Varje branch får sin egen test-URL
+- **Production-ready arkitektur** - Serverless, skalbar, zero DevOps
+
+#### Deployment Dokumentation
+- **DEPLOYMENT_RETRO.md** - Omfattande retrospektiv med lärdomar
+- **README.md** uppdaterad med fullständig Vercel deployment guide
+- **Troubleshooting section** för vanliga problem
+- **Best practices** dokumenterade
+
+### 🔧 Tekniska förändringar
+
+#### API Architecture
+- Konverterat från Express monolith → Vercel Serverless Functions
+- Varje endpoint är en separat function (auto-scaling)
+- OAuth2 token hämtas per request (stateless pattern)
+- Memory: 1024MB, Max Duration: 10s per function
+
+#### Frontend Optimeringar
+- API URL ändrad till relativ path (`/api`) - fungerar både lokalt och i produktion
+- Ingen environment variable behövs för API URL
+- `.env.production` för explicit konfiguration
+- Build optimerad för Vercel Edge Network
+
+#### Configuration
+- `vercel.json` konfigurerad för både frontend och backend
+- `api/package.json` för serverless function dependencies
+- Korrekt CORS-hantering (automatisk via Vercel)
+
+### 🐛 Fixat
+
+#### Deployment Issues
+- **GitHub Repository Mismatch** - Fixat koppling till rätt repo (`busschema-appen`)
+- **Build Cache Problem** - Dokumenterat hur man disablar cache vid problem
+- **Environment Variables** - Klargjort att `VITE_API_URL` INTE ska sättas i Vercel
+- **Debug Logging** - Tillagt och sedan tagit bort debug-loggar efter fix
+
+### 📝 Dokumentation
+
+- **DEPLOYMENT_RETRO.md** - Komplett retrospektiv med:
+  - Problem vi stötte på och lösningar
+  - Tekniska patterns och best practices
+  - Metrics och performance stats
+  - Pre/Post-deployment checklists
+  - Framtida optimeringar
+- **README.md** uppdaterat med Vercel deployment guide
+- **Troubleshooting** för vanliga deployment-problem
+
+### 🚀 Deployment Info
+
+- **Live URL**: https://busschema-appen.vercel.app
+- **Deployment Time**: ~1.5 minuter per deploy
+- **Cold Start**: ~500-800ms (första API-anrop)
+- **Warm Start**: ~50-150ms (efterföljande anrop)
+- **Cost**: 0 SEK (inom Vercel free tier)
+
+### ⚠️ Breaking Changes
+
+Inga breaking changes för användare. Backend-arkitekturen är ändrad men API-kontraktet är detsamma.
+
+### 🔐 Security
+
+- Environment variables säkert lagrade i Vercel
+- Ingen känslig data i Git
+- HTTPS enforced av Vercel
+- API secrets endast i serverless runtime
+
+---
+
 ## [1.1.0] - 2026-01-17
 
 ### ✨ Tillagt

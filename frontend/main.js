@@ -1,10 +1,5 @@
 // Use relative URL - works both locally (with Vercel CLI) and in production
 const API_URL = '/api';
-
-// DEBUG: Log API URL to console
-console.log('🔧 API_URL:', API_URL);
-console.log('🔧 import.meta.env.VITE_API_URL:', import.meta.env.VITE_API_URL);
-
 let currentStopGid = null;
 let currentStopName = null;
 let refreshInterval = null;
