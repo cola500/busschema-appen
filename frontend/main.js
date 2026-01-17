@@ -1,5 +1,5 @@
-// Use environment variable or fallback to localhost
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL - works both locally (with Vercel CLI) and in production
+const API_URL = '/api';
 let currentStopGid = null;
 let currentStopName = null;
 let refreshInterval = null;

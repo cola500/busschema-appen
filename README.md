@@ -76,38 +76,85 @@ npm run dev
 
 Öppna webbläsaren på: **http://localhost:5173**
 
-## Deployment
+## Deployment till Vercel (Rekommenderat)
 
-### Option 1: Vercel (Frontend) + Backend separat
+Denna app är fullständigt konfigurerad för Vercel deployment med både frontend och backend i samma projekt.
 
-Detta är enklast för att testa appen online snabbt.
+### Steg 1: Logga in på Vercel
+1. Gå till [vercel.com](https://vercel.com)
+2. Klicka "Sign Up" eller "Log In"
+3. Logga in med GitHub (rekommenderat)
 
-#### 1. Deploya Backend (till Raspberry Pi, VPS, eller lokal dator)
+### Steg 2: Importera Project
+1. Klicka "Add New..." → "Project"
+2. Hitta `busschema-app` i listan över GitHub repos
+3. Klicka "Import"
 
-```bash
-cd backend
-npm install
-# Konfigurera .env med dina API-nycklar
-npm start
-```
+### Steg 3: Konfigurera Project Settings
+Vercel ska automatiskt detektera:
+- **Framework Preset:** Vite
+- **Root Directory:** `./` (lämna tomt)
+- **Build Command:** `cd frontend && npm install && npm run build`
+- **Output Directory:** `frontend/dist`
 
-Backend körs nu på t.ex. `http://localhost:3001` eller din servers IP.
+**Om Vercel inte fyller i automatiskt:**
+- Välj "Vite" som Framework Preset
+- Övriga settings ska fyllas i automatiskt
 
-#### 2. Deploya Frontend till Vercel
+### Steg 4: Lägg till Environment Variables
+I "Environment Variables" sektionen, lägg till:
 
-1. Gå till [vercel.com](https://vercel.com) och logga in
-2. Importera GitHub-repot
-3. Vercel detekterar automatiskt projektet
-4. Lägg till Environment Variable:
-   - **Name**: `VITE_API_URL`
-   - **Value**: `http://YOUR_BACKEND_URL:3001/api` (t.ex. `http://192.168.1.100:3001/api`)
-5. Klicka "Deploy"
+| Name | Value |
+|------|-------|
+| `VASTTRAFIK_CLIENT_ID` | Ditt Client ID från Västtrafik |
+| `VASTTRAFIK_CLIENT_SECRET` | Ditt Client Secret från Västtrafik |
 
-**OBS:** Om backend körs lokalt behöver du öppna port 3001 i din router eller använda en tunnel-service som ngrok.
+**VIKTIGT:** Klicka på alla 3 checkboxes (Production, Preview, Development)
 
-#### 3. Alternativ: Deploya backend till Vercel också
+### Steg 5: Deploy!
+1. Klicka "Deploy"
+2. Vänta medan Vercel bygger projektet (tar ca 1-2 minuter)
+3. När det står "Congratulations!" - klicka på preview-länken
 
-Du kan deploya backend som en Vercel Serverless Function genom att skapa en `api/`-mapp och flytta backend-koden dit. Se [Vercel Node.js docs](https://vercel.com/docs/functions/runtimes/node-js) för detaljer.
+### Steg 6: Testa Appen
+1. Öppna deployed URL (t.ex. `busschema-app.vercel.app`)
+2. Testa söka efter "Brunnsparken"
+3. Klicka på en hållplats
+4. Verifiera att avgångar visas
+5. Testa favoritfunktionen
+
+### Troubleshooting
+
+#### Problem: "Failed to fetch"
+**Orsak:** API endpoints fungerar inte
+**Lösning:**
+1. Gå till Vercel Dashboard → Functions
+2. Klicka på en function och kolla logs
+3. Verifiera att environment variables är satta
+
+#### Problem: "401 Unauthorized" från Västtrafik
+**Orsak:** Felaktiga API-nycklar
+**Lösning:**
+1. Gå till Settings → Environment Variables
+2. Dubbelkolla att Client ID och Secret är korrekta
+3. Redeploy (Settings → Deployments → ... → Redeploy)
+
+#### Problem: Appen laddar men visar inga avgångar
+**Orsak:** Troligen API-problem
+**Lösning:**
+1. Öppna Developer Console (F12)
+2. Gå till Network tab
+3. Klicka på en hållplats
+4. Kolla om `/api/departures/...` request lyckas
+5. Om 500 error → kolla Vercel function logs
+
+### Efter Deployment
+
+**Automatisk deployment:** Varje gång du pushar till GitHub så deployar Vercel automatiskt! 🎉
+
+**Preview deployments:** Varje branch får sin egen preview-URL för testning
+
+**Kostnader:** Vercel Free Tier inkluderar 100 GB-hours/month för serverless functions vilket räcker mer än väl för personligt bruk.
 
 ---
 
