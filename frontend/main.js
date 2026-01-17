@@ -17,6 +17,9 @@ const favoritesSection = document.getElementById('favoritesSection');
 const favoritesList = document.getElementById('favoritesList');
 const noFavorites = document.getElementById('noFavorites');
 const addFavoriteBtn = document.getElementById('addFavoriteBtn');
+const filterInfoDiv = document.getElementById('filterInfo');
+const filterTextSpan = document.getElementById('filterText');
+const clearFilterBtn = document.getElementById('clearFilterBtn');
 
 // Update clock
 function updateClock() {
@@ -174,6 +177,58 @@ function renderFavorites() {
 
 // === END FAVORITES ===
 
+// === LINE FILTER MANAGEMENT ===
+
+// Get hidden lines for a specific stop from localStorage
+function getLineFilters(gid) {
+  const stored = localStorage.getItem('lineFilters');
+  const filters = stored ? JSON.parse(stored) : {};
+  return filters[gid] || [];
+}
+
+// Save hidden lines for a specific stop to localStorage
+function saveLineFilters(gid, hiddenLines) {
+  const stored = localStorage.getItem('lineFilters');
+  const filters = stored ? JSON.parse(stored) : {};
+  filters[gid] = hiddenLines;
+  localStorage.setItem('lineFilters', JSON.stringify(filters));
+}
+
+// Toggle a line's visibility (hide/show)
+function toggleLineFilter(lineNumber) {
+  const hidden = getLineFilters(currentStopGid);
+  const index = hidden.indexOf(lineNumber);
+  if (index === -1) {
+    hidden.push(lineNumber);
+  } else {
+    hidden.splice(index, 1);
+  }
+  saveLineFilters(currentStopGid, hidden);
+  fetchDepartures();
+}
+
+// Clear all filters for current stop
+function clearLineFilters() {
+  saveLineFilters(currentStopGid, []);
+  fetchDepartures();
+}
+
+// Update filter info display
+function updateFilterInfo(hiddenLines) {
+  if (hiddenLines.length === 0) {
+    filterInfoDiv.style.display = 'none';
+    return;
+  }
+
+  filterInfoDiv.style.display = 'flex';
+  const lineText = hiddenLines.length === 1
+    ? `Linje ${hiddenLines[0]} är dold`
+    : `Linjerna ${hiddenLines.join(', ')} är dolda`;
+  filterTextSpan.textContent = lineText;
+}
+
+// === END LINE FILTER ===
+
 // Debounce function for search
 function debounce(func, wait) {
   let timeout;
@@ -288,19 +343,40 @@ async function fetchDepartures() {
 
 // Display departures
 function displayDepartures(data) {
+  // Get hidden lines for current stop
+  const hiddenLines = getLineFilters(currentStopGid);
+
+  // Update filter info display
+  updateFilterInfo(hiddenLines);
+
   if (!data.results || data.results.length === 0) {
     departuresDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Inga avgångar just nu</div>';
     return;
   }
 
-  departuresDiv.innerHTML = data.results.map(dep => {
+  // Filter out hidden lines
+  const visibleDepartures = data.results.filter(dep => {
+    const lineNumber = dep.serviceJourney.line.shortName || dep.serviceJourney.line.name;
+    return !hiddenLines.includes(lineNumber);
+  });
+
+  if (visibleDepartures.length === 0) {
+    departuresDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Alla linjer är dolda. Klicka "Visa alla" för att återställa.</div>';
+    return;
+  }
+
+  departuresDiv.innerHTML = visibleDepartures.map(dep => {
     const time = formatDepartureTime(dep.estimatedTime || dep.plannedTime);
     const isSoon = getMinutesUntil(dep.estimatedTime || dep.plannedTime) <= 5;
+    const lineNumber = dep.serviceJourney.line.shortName || dep.serviceJourney.line.name;
 
     return `
       <div class="departure-card">
-        <div class="line-badge" style="background: ${dep.serviceJourney.line.backgroundColor || '#1a73b5'}; color: ${dep.serviceJourney.line.foregroundColor || 'white'}">
-          ${dep.serviceJourney.line.shortName || dep.serviceJourney.line.name}
+        <div class="line-badge"
+             data-line="${lineNumber}"
+             title="Klicka för att dölja linje ${lineNumber}"
+             style="background: ${dep.serviceJourney.line.backgroundColor || '#1a73b5'}; color: ${dep.serviceJourney.line.foregroundColor || 'white'}">
+          ${lineNumber}
         </div>
         <div class="departure-info">
           <div class="departure-destination">
@@ -316,6 +392,15 @@ function displayDepartures(data) {
       </div>
     `;
   }).join('');
+
+  // Add click handlers to line badges
+  departuresDiv.querySelectorAll('.line-badge').forEach(badge => {
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const lineNumber = badge.dataset.line;
+      toggleLineFilter(lineNumber);
+    });
+  });
 }
 
 // Format departure time
@@ -352,6 +437,7 @@ stopSearchInput.addEventListener('input', debounce((e) => {
 
 refreshBtn.addEventListener('click', fetchDepartures);
 addFavoriteBtn.addEventListener('click', addToFavorites);
+clearFilterBtn.addEventListener('click', clearLineFilters);
 
 // Initialize favorites on page load
 renderFavorites();
