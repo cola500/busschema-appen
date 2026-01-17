@@ -12,7 +12,7 @@ och projektet följer [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 #### Geolocation - Hitta närmaste hållplats
 - **📍-knapp** i UI bredvid sökfältet för att hitta närmaste hållplats
 - **Geolocation API-integration** - Använder enhetens GPS/platsåtkomst
-- **Västtrafik Nearby API** - Integration med `/locations/nearby` endpoint
+- **Västtrafik Coordinates API** - Integration med `/locations/by-coordinates` endpoint
 - **Serverless Function**: `/api/stops/nearby.js` för Vercel deployment
 - **Backend endpoint**: `/api/stops/nearby` för lokal utveckling
 - **Automatisk närhetssökning** baserat på användarens koordinater
@@ -32,8 +32,8 @@ och projektet följer [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 #### API Architecture
 - **Coordinate validation** - Validerar latitude (-90 till 90) och longitude (-180 till 180)
-- **Västtrafik API**: `GET /pr/v4/locations/nearby?latitude={lat}&longitude={lon}&limit={limit}`
-- **Query parameters**: latitude, longitude, limit (default: 10)
+- **Västtrafik API**: `GET /pr/v4/locations/by-coordinates?latitude={lat}&longitude={lon}&radiusInMeters=1000&limit={limit}`
+- **Query parameters**: latitude, longitude, radiusInMeters (1000m), limit (default: 10)
 - **Samma auth pattern** - OAuth2-token via `getAccessToken()`
 
 #### Frontend Implementation
@@ -73,6 +73,38 @@ och projektet följer [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **HTTPS-only** - Geolocation API kräver säker kontext
 - **No storage** - Koordinater sparas INTE permanent
 - **Client-side only** - Position skickas direkt till Västtrafik API, loggas ej
+
+### 🐛 Bug Fixes (Post-Launch)
+
+#### Critical Fix: Felaktigt API Endpoint (samma dag)
+- **Problem**: Använde `/locations/nearby` som inte existerar i Västtrafik API
+- **Symptom**: "Kunde inte hitta närliggande hållplatser" - feature fungerade inte alls
+- **Root cause**: Antog endpoint-namn utan att verifiera i dokumentation
+- **Lösning**: Bytte till korrekt endpoint `/locations/by-coordinates`
+- **Tillagt**: `radiusInMeters=1000` parameter (1km sökradie)
+- **Förbättrat**: Error logging med `response.text()` för bättre debugging
+- **Tid att fixa**: 15 minuter (inkl. research)
+- **Status**: ✅ Verifierad fungerande med riktig användare
+
+**Filer ändrade**:
+- `api/stops/nearby.js` - Uppdaterad endpoint och radius
+- `backend/server.js` - Uppdaterad endpoint och radius
+- `GEOLOCATION_RETRO.md` - Post-mortem analys med 4 nya lärdomar
+
+**Lärdomar dokumenterade**:
+1. Aldrig anta endpoint-namn - verifiera ALLTID i dokumentation
+2. Skriv retrospektiv EFTER testing, inte före
+3. API Mirrors (GitHub) är guld värda för debugging
+4. Error logging med response.text() är kritiskt
+
+**Korrekt endpoint**:
+```
+GET /pr/v4/locations/by-coordinates
+  ?latitude={lat}
+  &longitude={lon}
+  &radiusInMeters=1000
+  &limit=10
+```
 
 ---
 
