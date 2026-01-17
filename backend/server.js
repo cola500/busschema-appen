@@ -124,8 +124,9 @@ app.get('/api/stops/nearby', async (req, res) => {
 
   try {
     const token = await getAccessToken();
+    const radiusInMeters = 1000; // Search within 1km radius
     const response = await fetch(
-      `${VASTTRAFIK_API_BASE}/locations/nearby?latitude=${lat}&longitude=${lon}&limit=${limit}`,
+      `${VASTTRAFIK_API_BASE}/locations/by-coordinates?latitude=${lat}&longitude=${lon}&radiusInMeters=${radiusInMeters}&limit=${limit}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -134,6 +135,8 @@ app.get('/api/stops/nearby', async (req, res) => {
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Västtrafik API error: ${response.status}`, errorText);
       throw new Error(`API error: ${response.status}`);
     }
 
