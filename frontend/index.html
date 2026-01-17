@@ -26,12 +26,17 @@
     </div>
 
     <div class="search-section">
-      <input
-        type="text"
-        id="stopSearch"
-        placeholder="Sök hållplats (t.ex. Betaniagatan)"
-        class="search-input"
-      >
+      <div class="search-input-container">
+        <input
+          type="text"
+          id="stopSearch"
+          placeholder="Sök hållplats (t.ex. Betaniagatan)"
+          class="search-input"
+        >
+        <button id="locationBtn" class="location-btn" title="Hitta närmaste hållplats">
+          📍
+        </button>
+      </div>
       <div id="searchResults" class="search-results"></div>
     </div>
 
