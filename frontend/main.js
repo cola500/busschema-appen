@@ -20,6 +20,7 @@ const addFavoriteBtn = document.getElementById('addFavoriteBtn');
 const filterInfoDiv = document.getElementById('filterInfo');
 const filterTextSpan = document.getElementById('filterText');
 const clearFilterBtn = document.getElementById('clearFilterBtn');
+const locationBtn = document.getElementById('locationBtn');
 
 // Update clock
 function updateClock() {
@@ -440,6 +441,92 @@ function showError(message) {
   loadingDiv.style.display = 'none';
 }
 
+// === GEOLOCATION FUNCTIONALITY ===
+
+// Search for nearby stops using coordinates
+async function searchNearbyStops(latitude, longitude) {
+  try {
+    const response = await fetch(
+      `${API_URL}/stops/nearby?latitude=${latitude}&longitude=${longitude}&limit=10`
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to search nearby stops');
+    }
+
+    const data = await response.json();
+    displaySearchResults(data);
+  } catch (error) {
+    console.error('Error searching nearby stops:', error);
+    searchResults.innerHTML = '<div style="color: red; padding: 10px;">Kunde inte hitta närliggande hållplatser</div>';
+  }
+}
+
+// Get user's location and find nearby stops
+function findNearbyStops() {
+  // Check if geolocation is supported
+  if (!navigator.geolocation) {
+    alert('Din webbläsare stöder inte platsinformation');
+    return;
+  }
+
+  // Disable button while loading
+  locationBtn.disabled = true;
+  locationBtn.textContent = '⌛';
+
+  // Clear search input
+  stopSearchInput.value = '';
+  searchResults.innerHTML = '<div style="padding: 10px; color: #6c757d;">Hämtar din plats...</div>';
+
+  // Get current position
+  navigator.geolocation.getCurrentPosition(
+    // Success callback
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      console.log('Location found:', latitude, longitude);
+
+      searchResults.innerHTML = '<div style="padding: 10px; color: #6c757d;">Söker närliggande hållplatser...</div>';
+      searchNearbyStops(latitude, longitude);
+
+      // Re-enable button
+      locationBtn.disabled = false;
+      locationBtn.textContent = '📍';
+    },
+    // Error callback
+    (error) => {
+      console.error('Geolocation error:', error);
+
+      let errorMessage = 'Kunde inte hämta din plats';
+
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = 'Du nekade åtkomst till din plats. Tillåt platsåtkomst i webbläsaren.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = 'Platsinformation är inte tillgänglig';
+          break;
+        case error.TIMEOUT:
+          errorMessage = 'Det tog för lång tid att hämta din plats';
+          break;
+      }
+
+      searchResults.innerHTML = `<div style="color: red; padding: 10px;">${errorMessage}</div>`;
+
+      // Re-enable button
+      locationBtn.disabled = false;
+      locationBtn.textContent = '📍';
+    },
+    // Options
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000 // Cache position for 1 minute
+    }
+  );
+}
+
+// === END GEOLOCATION ===
+
 // Event listeners
 stopSearchInput.addEventListener('input', debounce((e) => {
   searchStops(e.target.value);
@@ -448,6 +535,7 @@ stopSearchInput.addEventListener('input', debounce((e) => {
 refreshBtn.addEventListener('click', fetchDepartures);
 addFavoriteBtn.addEventListener('click', addToFavorites);
 clearFilterBtn.addEventListener('click', clearLineFilters);
+locationBtn.addEventListener('click', findNearbyStops);
 
 // Initialize favorites on page load
 renderFavorites();

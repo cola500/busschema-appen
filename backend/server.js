@@ -95,6 +95,56 @@ app.get('/api/stops/search', async (req, res) => {
   }
 });
 
+// Search for nearby stops by coordinates
+app.get('/api/stops/nearby', async (req, res) => {
+  const { latitude, longitude, limit = 10 } = req.query;
+
+  // Validate required parameters
+  if (!latitude || !longitude) {
+    return res.status(400).json({
+      error: 'Latitude and longitude parameters are required'
+    });
+  }
+
+  // Validate coordinate values
+  const lat = parseFloat(latitude);
+  const lon = parseFloat(longitude);
+
+  if (isNaN(lat) || isNaN(lon)) {
+    return res.status(400).json({
+      error: 'Invalid latitude or longitude values'
+    });
+  }
+
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return res.status(400).json({
+      error: 'Latitude must be between -90 and 90, longitude between -180 and 180'
+    });
+  }
+
+  try {
+    const token = await getAccessToken();
+    const response = await fetch(
+      `${VASTTRAFIK_API_BASE}/locations/nearby?latitude=${lat}&longitude=${lon}&limit=${limit}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error searching nearby stops:', error);
+    res.status(500).json({ error: 'Failed to search nearby stops' });
+  }
+});
+
 // Get departures for a specific stop
 app.get('/api/departures/:gid', async (req, res) => {
   const { gid } = req.params;
