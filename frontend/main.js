@@ -221,10 +221,20 @@ function updateFilterInfo(hiddenLines) {
   }
 
   filterInfoDiv.style.display = 'flex';
-  const lineText = hiddenLines.length === 1
-    ? `Linje ${hiddenLines[0]} är dold`
-    : `Linjerna ${hiddenLines.join(', ')} är dolda`;
-  filterTextSpan.textContent = lineText;
+
+  // Create clickable badges for hidden lines
+  const badgesHtml = hiddenLines.map(line =>
+    `<span class="line-badge filtered" data-line="${line}" title="Klicka för att visa linje ${line}">${line}</span>`
+  ).join('');
+
+  filterTextSpan.innerHTML = `Dolda: ${badgesHtml}`;
+
+  // Add click handlers to show hidden lines again
+  filterTextSpan.querySelectorAll('.line-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+      toggleLineFilter(badge.dataset.line);
+    });
+  });
 }
 
 // === END LINE FILTER ===

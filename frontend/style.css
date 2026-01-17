@@ -304,9 +304,20 @@ body {
   border: 1px solid #ffc107;
 }
 
-.filter-info span {
+.filter-info > span {
   font-size: 0.95rem;
   color: #856404;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-info .line-badge {
+  min-width: auto;
+  padding: 4px 10px;
+  font-size: 0.9rem;
+  margin-right: 0;
 }
 
 .clear-filter-btn {
