@@ -4,6 +4,89 @@ let currentStopGid = null;
 let currentStopName = null;
 let refreshInterval = null;
 
+// === SAFE LOCALSTORAGE HELPERS ===
+// All localStorage operations wrapped in try-catch to handle corrupt data
+
+/**
+ * Safely read and parse JSON from localStorage
+ * @param {string} key - localStorage key
+ * @param {*} defaultValue - value to return if read fails
+ * @returns {*} parsed value or defaultValue
+ */
+function safeGetJSON(key, defaultValue = null) {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return defaultValue;
+    return JSON.parse(stored);
+  } catch (e) {
+    console.error(`localStorage read error for "${key}":`, e);
+    // Attempt to remove corrupt data
+    try {
+      localStorage.removeItem(key);
+    } catch (removeError) {
+      console.error('Could not remove corrupt localStorage key:', removeError);
+    }
+    return defaultValue;
+  }
+}
+
+/**
+ * Safely write JSON to localStorage
+ * @param {string} key - localStorage key
+ * @param {*} value - value to store
+ * @returns {boolean} true if successful, false otherwise
+ */
+function safeSetJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.error(`localStorage write error for "${key}":`, e);
+    // Could be quota exceeded or other storage error
+    return false;
+  }
+}
+
+// === HTML ESCAPING (XSS Protection) ===
+
+/**
+ * Escape HTML special characters to prevent XSS
+ * @param {string} str - string to escape
+ * @returns {string} escaped string safe for innerHTML
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+// === API VALIDATION HELPERS ===
+
+/**
+ * Validate that a departure object has required fields
+ * @param {Object} dep - departure object from API
+ * @returns {boolean} true if valid
+ */
+function isValidDeparture(dep) {
+  return dep &&
+    dep.serviceJourney &&
+    dep.serviceJourney.line &&
+    (dep.serviceJourney.line.shortName || dep.serviceJourney.line.name) &&
+    dep.serviceJourney.direction &&
+    (dep.estimatedTime || dep.plannedTime);
+}
+
+/**
+ * Get line number from departure, with fallback
+ * @param {Object} dep - departure object
+ * @returns {string} line number or '?'
+ */
+function getLineNumber(dep) {
+  if (!dep?.serviceJourney?.line) return '?';
+  return dep.serviceJourney.line.shortName || dep.serviceJourney.line.name || '?';
+}
+
 // DOM elements
 const stopSearchInput = document.getElementById('stopSearch');
 const searchResults = document.getElementById('searchResults');
@@ -20,7 +103,6 @@ const addFavoriteBtn = document.getElementById('addFavoriteBtn');
 const filterInfoDiv = document.getElementById('filterInfo');
 const filterTextSpan = document.getElementById('filterText');
 const clearFilterBtn = document.getElementById('clearFilterBtn');
-const locationBtn = document.getElementById('locationBtn');
 
 // Update clock
 function updateClock() {
@@ -50,15 +132,17 @@ updateBuildInfo();
 
 // === FAVORITES MANAGEMENT ===
 
-// Get favorites from localStorage
+// Get favorites from localStorage (using safe helper)
 function getFavorites() {
-  const stored = localStorage.getItem('favorites');
-  return stored ? JSON.parse(stored) : [];
+  const favorites = safeGetJSON('favorites', []);
+  // Validate structure - ensure it's an array of objects with required fields
+  if (!Array.isArray(favorites)) return [];
+  return favorites.filter(fav => fav && fav.gid && fav.name);
 }
 
-// Save favorites to localStorage
+// Save favorites to localStorage (using safe helper)
 function saveFavorites(favorites) {
-  localStorage.setItem('favorites', JSON.stringify(favorites));
+  return safeSetJSON('favorites', favorites);
 }
 
 // Check if current stop is a favorite
@@ -130,6 +214,7 @@ function updateFavoriteButton() {
 }
 
 // Render favorites list
+// Note: Event listeners use delegation on parent (set up once in setupEventDelegation)
 function renderFavorites() {
   const favorites = getFavorites();
 
@@ -141,58 +226,39 @@ function renderFavorites() {
 
   noFavorites.style.display = 'none';
 
+  // Build HTML with escaped user data to prevent XSS
   favoritesList.innerHTML = favorites.map(fav => `
-    <div class="favorite-item" data-gid="${fav.gid}" data-name="${fav.name}">
-      <span class="favorite-item-name">${fav.name}</span>
-      <button class="favorite-item-delete" data-gid="${fav.gid}" title="Ta bort favorit">
+    <div class="favorite-item" data-gid="${escapeHtml(fav.gid)}" data-name="${escapeHtml(fav.name)}">
+      <span class="favorite-item-name">${escapeHtml(fav.name)}</span>
+      <button class="favorite-item-delete" data-gid="${escapeHtml(fav.gid)}" title="Ta bort favorit">
         🗑️
       </button>
     </div>
   `).join('');
-
-  // Add click handlers for favorites
-  favoritesList.querySelectorAll('.favorite-item').forEach(item => {
-    const gid = item.dataset.gid;
-    const name = item.dataset.name;
-
-    // Click on favorite name to select stop
-    item.addEventListener('click', (e) => {
-      // Don't trigger if clicking delete button
-      if (!e.target.classList.contains('favorite-item-delete')) {
-        selectStop(gid, name);
-        // Scroll to top to see departures
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
-  });
-
-  // Add click handlers for delete buttons
-  favoritesList.querySelectorAll('.favorite-item-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent selecting the stop
-      const gid = btn.dataset.gid;
-      removeFromFavorites(gid);
-    });
-  });
+  // Event handling via delegation - no listeners added here
 }
 
 // === END FAVORITES ===
 
 // === LINE FILTER MANAGEMENT ===
 
-// Get hidden lines for a specific stop from localStorage
+// Get hidden lines for a specific stop from localStorage (using safe helper)
 function getLineFilters(gid) {
-  const stored = localStorage.getItem('lineFilters');
-  const filters = stored ? JSON.parse(stored) : {};
-  return filters[gid] || [];
+  const filters = safeGetJSON('lineFilters', {});
+  // Validate structure
+  if (typeof filters !== 'object' || filters === null) return [];
+  const stopFilters = filters[gid];
+  if (!Array.isArray(stopFilters)) return [];
+  // Ensure all items are strings
+  return stopFilters.filter(item => typeof item === 'string');
 }
 
-// Save hidden lines for a specific stop to localStorage
+// Save hidden lines for a specific stop to localStorage (using safe helper)
 function saveLineFilters(gid, hiddenLines) {
-  const stored = localStorage.getItem('lineFilters');
-  const filters = stored ? JSON.parse(stored) : {};
-  filters[gid] = hiddenLines;
-  localStorage.setItem('lineFilters', JSON.stringify(filters));
+  const filters = safeGetJSON('lineFilters', {});
+  const validFilters = (typeof filters === 'object' && filters !== null) ? filters : {};
+  validFilters[gid] = hiddenLines;
+  return safeSetJSON('lineFilters', validFilters);
 }
 
 // Toggle a line's visibility (hide/show)
@@ -215,6 +281,7 @@ function clearLineFilters() {
 }
 
 // Update filter info display
+// Note: Event listeners use delegation on parent (set up once in setupEventDelegation)
 function updateFilterInfo(hiddenLines) {
   if (hiddenLines.length === 0) {
     filterInfoDiv.style.display = 'none';
@@ -223,19 +290,13 @@ function updateFilterInfo(hiddenLines) {
 
   filterInfoDiv.style.display = 'flex';
 
-  // Create clickable badges for hidden lines
+  // Create clickable badges for hidden lines (escaped to prevent XSS)
   const badgesHtml = hiddenLines.map(line =>
-    `<span class="line-badge filtered" data-line="${line}" title="Klicka för att visa linje ${line}">${line}</span>`
+    `<span class="line-badge filtered" data-line="${escapeHtml(line)}" title="Klicka för att visa linje ${escapeHtml(line)}">${escapeHtml(line)}</span>`
   ).join('');
 
   filterTextSpan.innerHTML = `Dolda: ${badgesHtml}`;
-
-  // Add click handlers to show hidden lines again
-  filterTextSpan.querySelectorAll('.line-badge').forEach(badge => {
-    badge.addEventListener('click', () => {
-      toggleLineFilter(badge.dataset.line);
-    });
-  });
+  // Event handling via delegation - no listeners added here
 }
 
 // === END LINE FILTER ===
@@ -273,30 +334,26 @@ async function searchStops(query) {
 }
 
 // Display search results
+// Note: Event listeners use delegation on parent (set up once in setupEventDelegation)
 function displaySearchResults(data) {
   if (!data.results || data.results.length === 0) {
     searchResults.innerHTML = '<div style="padding: 10px; color: #6c757d;">Inga resultat</div>';
     return;
   }
 
-  searchResults.innerHTML = data.results
-    .filter(result => result.locationType === 'stoparea' && result.gid) // Only show stops with gid
-    .slice(0, 5)
+  // Filter and escape data to prevent XSS
+  const validResults = data.results
+    .filter(result => result.locationType === 'stoparea' && result.gid && result.name)
+    .slice(0, 5);
+
+  searchResults.innerHTML = validResults
     .map(result => `
-      <div class="search-result-item" data-gid="${result.gid}" data-name="${result.name}">
-        <strong>${result.name}</strong>
+      <div class="search-result-item" data-gid="${escapeHtml(result.gid)}" data-name="${escapeHtml(result.name)}">
+        <strong>${escapeHtml(result.name)}</strong>
       </div>
     `)
     .join('');
-
-  // Add click handlers
-  searchResults.querySelectorAll('.search-result-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const gid = item.dataset.gid;
-      const name = item.dataset.name;
-      selectStop(gid, name);
-    });
-  });
+  // Event handling via delegation - no listeners added here
 }
 
 // Select a stop
@@ -306,14 +363,14 @@ function selectStop(gid, name) {
   stopSearchInput.value = name;
   searchResults.innerHTML = '';
 
-  // Update header
+  // Update header (textContent is XSS-safe)
   document.querySelector('.header h1').textContent = `🚌 ${name}`;
 
   // Update favorite button
   updateFavoriteButton();
 
-  // Save to localStorage
-  localStorage.setItem('selectedStop', JSON.stringify({ gid, name }));
+  // Save to localStorage (using safe helper)
+  safeSetJSON('selectedStop', { gid, name });
 
   // Fetch departures
   fetchDepartures();
@@ -353,6 +410,7 @@ async function fetchDepartures() {
 }
 
 // Display departures
+// Note: Event listeners use delegation on parent (set up once in setupEventDelegation)
 function displayDepartures(data) {
   // Get hidden lines for current stop
   const hiddenLines = getLineFilters(currentStopGid);
@@ -365,9 +423,18 @@ function displayDepartures(data) {
     return;
   }
 
+  // Filter and validate departures - only keep valid ones
+  const validDepartures = data.results.filter(isValidDeparture);
+
+  if (validDepartures.length === 0) {
+    departuresDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Inga giltiga avgångar</div>';
+    console.warn('API returned departures but none were valid:', data.results);
+    return;
+  }
+
   // Filter out hidden lines
-  const visibleDepartures = data.results.filter(dep => {
-    const lineNumber = dep.serviceJourney.line.shortName || dep.serviceJourney.line.name;
+  const visibleDepartures = validDepartures.filter(dep => {
+    const lineNumber = getLineNumber(dep);
     return !hiddenLines.includes(lineNumber);
   });
 
@@ -376,25 +443,31 @@ function displayDepartures(data) {
     return;
   }
 
+  // Build HTML with escaped data to prevent XSS
   departuresDiv.innerHTML = visibleDepartures.map(dep => {
     const time = formatDepartureTime(dep.estimatedTime || dep.plannedTime);
     const isSoon = getMinutesUntil(dep.estimatedTime || dep.plannedTime) <= 5;
-    const lineNumber = dep.serviceJourney.line.shortName || dep.serviceJourney.line.name;
+    const lineNumber = getLineNumber(dep);
+    const direction = escapeHtml(dep.serviceJourney.direction);
+    const platform = dep.stopPoint?.platform ? escapeHtml(dep.stopPoint.platform) : null;
+    // Colors from API are validated CSS values, but escape anyway
+    const bgColor = escapeHtml(dep.serviceJourney.line.backgroundColor || '#1a73b5');
+    const fgColor = escapeHtml(dep.serviceJourney.line.foregroundColor || 'white');
 
     return `
       <div class="departure-card">
         <div class="line-badge"
-             data-line="${lineNumber}"
-             title="Klicka för att dölja linje ${lineNumber}"
-             style="background: ${dep.serviceJourney.line.backgroundColor || '#1a73b5'}; color: ${dep.serviceJourney.line.foregroundColor || 'white'}">
-          ${lineNumber}
+             data-line="${escapeHtml(lineNumber)}"
+             title="Klicka för att dölja linje ${escapeHtml(lineNumber)}"
+             style="background: ${bgColor}; color: ${fgColor}">
+          ${escapeHtml(lineNumber)}
         </div>
         <div class="departure-info">
           <div class="departure-destination">
-            ${dep.serviceJourney.direction}
+            ${direction}
           </div>
           <div class="departure-track">
-            ${dep.stopPoint?.platform ? `Läge ${dep.stopPoint.platform}` : ''}
+            ${platform ? `Läge ${platform}` : ''}
           </div>
         </div>
         <div class="departure-time ${isSoon ? 'soon' : ''}">
@@ -403,15 +476,7 @@ function displayDepartures(data) {
       </div>
     `;
   }).join('');
-
-  // Add click handlers to line badges
-  departuresDiv.querySelectorAll('.line-badge').forEach(badge => {
-    badge.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const lineNumber = badge.dataset.line;
-      toggleLineFilter(lineNumber);
-    });
-  });
+  // Event handling via delegation - no listeners added here
 }
 
 // Format departure time
@@ -441,93 +506,65 @@ function showError(message) {
   loadingDiv.style.display = 'none';
 }
 
-// === GEOLOCATION FUNCTIONALITY ===
+// === EVENT DELEGATION ===
+// Set up event listeners once on parent elements to avoid memory leaks
+// This is called once on page load and handles all dynamic content
 
-// Search for nearby stops using coordinates
-async function searchNearbyStops(latitude, longitude) {
-  try {
-    const response = await fetch(
-      `${API_URL}/stops/nearby?latitude=${latitude}&longitude=${longitude}&limit=10`
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to search nearby stops');
+function setupEventDelegation() {
+  // Handle clicks on favorites list (select stop or delete)
+  favoritesList.addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('.favorite-item-delete');
+    if (deleteBtn) {
+      e.stopPropagation();
+      const gid = deleteBtn.dataset.gid;
+      if (gid) removeFromFavorites(gid);
+      return;
     }
 
-    const data = await response.json();
-    displaySearchResults(data);
-  } catch (error) {
-    console.error('Error searching nearby stops:', error);
-    searchResults.innerHTML = '<div style="color: red; padding: 10px;">Kunde inte hitta närliggande hållplatser</div>';
-  }
-}
-
-// Get user's location and find nearby stops
-function findNearbyStops() {
-  // Check if geolocation is supported
-  if (!navigator.geolocation) {
-    alert('Din webbläsare stöder inte platsinformation');
-    return;
-  }
-
-  // Disable button while loading
-  locationBtn.disabled = true;
-  locationBtn.textContent = '⌛';
-
-  // Clear search input
-  stopSearchInput.value = '';
-  searchResults.innerHTML = '<div style="padding: 10px; color: #6c757d;">Hämtar din plats...</div>';
-
-  // Get current position
-  navigator.geolocation.getCurrentPosition(
-    // Success callback
-    (position) => {
-      const { latitude, longitude } = position.coords;
-      console.log('Location found:', latitude, longitude);
-
-      searchResults.innerHTML = '<div style="padding: 10px; color: #6c757d;">Söker närliggande hållplatser...</div>';
-      searchNearbyStops(latitude, longitude);
-
-      // Re-enable button
-      locationBtn.disabled = false;
-      locationBtn.textContent = '📍';
-    },
-    // Error callback
-    (error) => {
-      console.error('Geolocation error:', error);
-
-      let errorMessage = 'Kunde inte hämta din plats';
-
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          errorMessage = 'Du nekade åtkomst till din plats. Tillåt platsåtkomst i webbläsaren.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMessage = 'Platsinformation är inte tillgänglig';
-          break;
-        case error.TIMEOUT:
-          errorMessage = 'Det tog för lång tid att hämta din plats';
-          break;
+    const favoriteItem = e.target.closest('.favorite-item');
+    if (favoriteItem) {
+      const gid = favoriteItem.dataset.gid;
+      const name = favoriteItem.dataset.name;
+      if (gid && name) {
+        selectStop(gid, name);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-
-      searchResults.innerHTML = `<div style="color: red; padding: 10px;">${errorMessage}</div>`;
-
-      // Re-enable button
-      locationBtn.disabled = false;
-      locationBtn.textContent = '📍';
-    },
-    // Options
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 60000 // Cache position for 1 minute
     }
-  );
+  });
+
+  // Handle clicks on search results (select stop)
+  searchResults.addEventListener('click', (e) => {
+    const resultItem = e.target.closest('.search-result-item');
+    if (resultItem) {
+      const gid = resultItem.dataset.gid;
+      const name = resultItem.dataset.name;
+      if (gid && name) {
+        selectStop(gid, name);
+      }
+    }
+  });
+
+  // Handle clicks on departure line badges (toggle filter)
+  departuresDiv.addEventListener('click', (e) => {
+    const lineBadge = e.target.closest('.line-badge');
+    if (lineBadge) {
+      e.stopPropagation();
+      const lineNumber = lineBadge.dataset.line;
+      if (lineNumber) toggleLineFilter(lineNumber);
+    }
+  });
+
+  // Handle clicks on filter info badges (show hidden line)
+  filterTextSpan.addEventListener('click', (e) => {
+    const lineBadge = e.target.closest('.line-badge');
+    if (lineBadge) {
+      const lineNumber = lineBadge.dataset.line;
+      if (lineNumber) toggleLineFilter(lineNumber);
+    }
+  });
 }
 
-// === END GEOLOCATION ===
-
-// Event listeners
+// === EVENT LISTENERS (static elements) ===
 stopSearchInput.addEventListener('input', debounce((e) => {
   searchStops(e.target.value);
 }, 300));
@@ -535,23 +572,23 @@ stopSearchInput.addEventListener('input', debounce((e) => {
 refreshBtn.addEventListener('click', fetchDepartures);
 addFavoriteBtn.addEventListener('click', addToFavorites);
 clearFilterBtn.addEventListener('click', clearLineFilters);
-locationBtn.addEventListener('click', findNearbyStops);
+
+// === INITIALIZATION ===
+
+// Set up event delegation (once, handles all dynamic content)
+setupEventDelegation();
 
 // Initialize favorites on page load
 renderFavorites();
 updateFavoriteButton();
 
-// Load saved stop from localStorage
-const savedStop = localStorage.getItem('selectedStop');
-if (savedStop) {
-  try {
-    const { gid, name } = JSON.parse(savedStop);
-    selectStop(gid, name);
-  } catch (error) {
-    console.error('Failed to load saved stop:', error);
-  }
+// Load saved stop from localStorage (using safe helper)
+const savedStop = safeGetJSON('selectedStop', null);
+if (savedStop && savedStop.gid && savedStop.name) {
+  selectStop(savedStop.gid, savedStop.name);
 } else {
   // Default: search for Betaniagatan
   stopSearchInput.value = 'Betaniagatan';
   searchStops('Betaniagatan');
 }
+
