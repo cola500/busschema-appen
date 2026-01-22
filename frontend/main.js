@@ -464,6 +464,8 @@ async function searchNearbyStops(latitude, longitude) {
 
 // Get user's location and find nearby stops
 function findNearbyStops() {
+  console.log('findNearbyStops called');
+
   // Check if geolocation is supported
   if (!navigator.geolocation) {
     alert('Din webbläsare stöder inte platsinformation');
@@ -535,7 +537,15 @@ stopSearchInput.addEventListener('input', debounce((e) => {
 refreshBtn.addEventListener('click', fetchDepartures);
 addFavoriteBtn.addEventListener('click', addToFavorites);
 clearFilterBtn.addEventListener('click', clearLineFilters);
-locationBtn.addEventListener('click', findNearbyStops);
+
+// Debug: Check if locationBtn exists
+console.log('locationBtn element:', locationBtn);
+if (locationBtn) {
+  locationBtn.addEventListener('click', findNearbyStops);
+  console.log('Location button event listener added');
+} else {
+  console.error('locationBtn not found!');
+}
 
 // Initialize favorites on page load
 renderFavorites();
